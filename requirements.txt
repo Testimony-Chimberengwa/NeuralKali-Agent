@@ -1,0 +1,9 @@
+ollama
+langchain
+chromadb
+rich
+python-dotenv
+pydantic
+requests
+pydantic-settings
+pytest
