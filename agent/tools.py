@@ -136,6 +136,11 @@ class ToolExecutor:
                 results["failed"].append({"tool": tool, "reason": str(exc)})
         return results
 
+    def bootstrap_recommended_tools(self) -> dict[str, Any]:
+        """Install the common lab toolset that the current registry knows about."""
+        recommended = [name for name, meta in self.tool_registry.items() if meta.get("binary")]
+        return self.install_tools(recommended)
+
     def execute_registered_tool(self, tool: str, target: str, args: dict[str, Any] | None = None) -> dict[str, Any]:
         """Execute known tool methods or fall back to a safe custom command path."""
         args = args or {}

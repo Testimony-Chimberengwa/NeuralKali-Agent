@@ -25,6 +25,15 @@ python cli.py scope --add 127.0.0.1
 python cli.py run --target 127.0.0.1 --task "Perform authorized recon" --no-interactive
 ```
 
+## Machine Bootstrap Flow
+
+```bash
+python cli.py setup --target 10.10.10.100 --model mistral --install-tools --auto
+python cli.py run --target 10.10.10.100 --task "Perform authorized assessment" --no-interactive
+```
+
+If you are using Docker, run the agent container and Ollama service first, then use the setup command from inside the container or from the host with the Ollama endpoint reachable.
+
 ## Interactive Interface
 
 ```bash

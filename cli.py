@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import ollama
@@ -49,6 +50,12 @@ def main() -> int:
     run_p.add_argument("--task", required=True)
     run_p.add_argument("--no-interactive", action="store_true")
 
+    setup_p = sub.add_parser("setup", help="Bootstrap the local lab operator environment")
+    setup_p.add_argument("--target", help="Authorized target to add to scope")
+    setup_p.add_argument("--model", default=settings.AI_MODEL, help="Ollama model to pull")
+    setup_p.add_argument("--install-tools", nargs="*", help="Optional tools to install into the Kali environment")
+    setup_p.add_argument("--auto", action="store_true", help="Run without extra prompts")
+
     sub.add_parser("daemon", help="Run daemon mode")
 
     scope_p = sub.add_parser("scope", help="Manage scope")
@@ -75,6 +82,34 @@ def main() -> int:
 
     args = parser.parse_args()
     agent = NeuralKaliAgent(settings=settings)
+
+    if args.command == "setup":
+        if args.target:
+            _add_scope(settings.SCOPE_FILE, args.target)
+            console.print(f"[green]Added to scope:[/green] {args.target}")
+
+        client = ollama.Client(host=settings.OLLAMA_HOST)
+        console.print(f"[cyan]Checking Ollama at {settings.OLLAMA_HOST}[/cyan]")
+        try:
+            client.list()
+        except Exception:
+            console.print("[yellow]Ollama not responding. Start the ollama service/container first.[/yellow]")
+            if not args.auto:
+                return 1
+
+        if args.model:
+            console.print(f"[cyan]Pulling model:[/cyan] {args.model}")
+            client.pull(args.model)
+
+        if args.install_tools is not None:
+            requested_tools = args.install_tools or [item["name"] for item in agent.tools.available_tools()]
+            console.print(f"[cyan]Preparing tools:[/cyan] {', '.join(requested_tools)}")
+            result = agent.tools.install_tools(requested_tools)
+            console.print(json.dumps(result, indent=2))
+
+        health = validate_environment(settings)
+        console.print(json.dumps(health, indent=2))
+        return 0 if health.get("healthy") else 1
 
     if args.command == "run":
         result = agent.run(args.target, args.task, interactive=not args.no_interactive)
