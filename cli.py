@@ -12,6 +12,7 @@ from rich.prompt import Prompt
 from rich.table import Table
 
 from agent.agent import NeuralKaliAgent
+from agent.target_policy import TargetPolicy
 from config.settings import Settings, validate_environment
 
 
@@ -49,6 +50,9 @@ def main() -> int:
     run_p.add_argument("--target", required=True)
     run_p.add_argument("--task", required=True)
     run_p.add_argument("--no-interactive", action="store_true")
+
+    precheck_p = sub.add_parser("precheck", help="Passively classify whether a target looks lab/internal")
+    precheck_p.add_argument("--target", required=True)
 
     setup_p = sub.add_parser("setup", help="Bootstrap the local lab operator environment")
     setup_p.add_argument("--target", help="Authorized target to add to scope")
@@ -115,6 +119,19 @@ def main() -> int:
         result = agent.run(args.target, args.task, interactive=not args.no_interactive)
         console.print(result)
         return 0 if result.get("success") else 1
+
+    if args.command == "precheck":
+        policy = TargetPolicy()
+        result = policy.assess(args.target)
+        table = Table(title="Target Precheck")
+        table.add_column("Field")
+        table.add_column("Value")
+        table.add_row("target", result.target)
+        table.add_row("category", result.category)
+        table.add_row("allowed", str(result.allowed))
+        table.add_row("reason", result.reason)
+        console.print(table)
+        return 0 if result.allowed else 1
 
     if args.command == "daemon":
         agent.daemon()

@@ -47,6 +47,17 @@ python cli.py tools --list
 python cli.py tools --install nmap zap burpsuite
 ```
 
+## Target Safety Precheck
+
+Use passive target classification before execution:
+
+```bash
+python cli.py precheck --target 10.10.10.100
+python cli.py precheck --target example.org
+```
+
+By default, likely live public organizational websites are blocked. Internal/lab targets proceed when also present in scope.
+
 ## HTB/THM Usage
 
 1. Add machine IP to scope.

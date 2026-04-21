@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     AUTO_EXPLOIT: bool = False
     TOOLKIT_AUTO_INSTALL: bool = False
     ENABLE_WEB_KNOWLEDGE: bool = True
+    ALLOW_PUBLIC_TARGETS: bool = False
     LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

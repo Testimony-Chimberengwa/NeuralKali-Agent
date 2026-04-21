@@ -16,6 +16,7 @@ from agent.knowledge import KnowledgeBase
 from agent.memory import Memory
 from agent.planner import Planner, Step
 from agent.reporter import Reporter
+from agent.target_policy import TargetPolicy
 from agent.tools import ToolExecutor
 from config.settings import Settings, setup_logging
 
@@ -33,6 +34,7 @@ class NeuralKaliAgent:
         self.planner = Planner(self.settings, self.logger)
         self.knowledge = KnowledgeBase(self.settings, self.logger)
         self.reporter = Reporter(self.settings, self.logger)
+        self.target_policy = TargetPolicy()
         self.client = ollama.Client(host=self.settings.OLLAMA_HOST)
         self.model = self.settings.AI_MODEL
 
@@ -81,6 +83,16 @@ class NeuralKaliAgent:
         return self.tools.execute_registered_tool(tool, args["target"], args)
 
     def run(self, target: str, task: str, interactive: bool = True) -> dict[str, Any]:
+        policy_assessment = self.target_policy.assess(target)
+        if not policy_assessment.allowed and not self.settings.ALLOW_PUBLIC_TARGETS:
+            message = (
+                f"Target blocked by policy ({policy_assessment.category}): "
+                f"{policy_assessment.reason}"
+            )
+            self.logger.error(message)
+            self.console.print(Panel(message, style="bold red"))
+            return {"success": False, "reason": message, "policy": policy_assessment.__dict__}
+
         if not self._in_scope(target):
             message = f"Target {target} is out of scope. Hard stop."
             self.logger.error(message)
