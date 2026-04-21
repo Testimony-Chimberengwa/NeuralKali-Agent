@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     LOG_FILE: Path = Path("/var/log/neuralkali.log")
     INTERACTIVE_MODE: bool = True
     AUTO_EXPLOIT: bool = False
+    TOOLKIT_AUTO_INSTALL: bool = False
+    ENABLE_WEB_KNOWLEDGE: bool = True
     LOG_LEVEL: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")

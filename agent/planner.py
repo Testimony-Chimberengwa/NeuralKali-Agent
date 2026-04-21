@@ -9,6 +9,7 @@ from typing import Any
 import ollama
 from pydantic import BaseModel, Field
 
+from agent.knowledge import KnowledgeBase
 from config.settings import Settings
 
 
@@ -32,8 +33,11 @@ class Planner:
         self.client = ollama.Client(host=settings.OLLAMA_HOST)
         self.model = settings.AI_MODEL
         self._plan: list[Step] = []
+        self._target: str = ""
+        self.knowledge = KnowledgeBase(settings, logger)
 
     def generate_plan(self, target: str, task: str) -> list[Step]:
+        self._target = target
         base = [
             Step(phase="Reconnaissance", tool="nmap", args={"target": target, "flags": "-sC -sV -O"}, reasoning="Discover open ports and services.", priority=1),
             Step(phase="Enumeration", tool="whatweb", args={"target": target}, reasoning="Fingerprint technologies for attack surface understanding.", priority=2, depends_on=["nmap"]),
@@ -44,10 +48,11 @@ class Planner:
             Step(phase="Reporting", tool="report", args={"target": target}, reasoning="Generate a final report with remediation guidance.", priority=7),
         ]
 
+        method_context = self.knowledge.methodology_summary() if self.settings.ENABLE_WEB_KNOWLEDGE else ""
         prompt = (
             "You are a pentest planning assistant. Refine this plan for a legal authorized target. "
             "Return JSON list of Step objects only. "
-            f"Target: {target}\nTask: {task}\nBasePlan: {json.dumps([s.model_dump() for s in base])}"
+            f"Target: {target}\nTask: {task}\nMethodologyContext: {method_context}\nBasePlan: {json.dumps([s.model_dump() for s in base])}"
         )
         try:
             response = self.client.generate(model=self.model, prompt=prompt)
@@ -68,9 +73,10 @@ class Planner:
         return None
 
     def adjust_plan(self, findings: list[dict[str, Any]]) -> list[Step]:
+        method_context = self.knowledge.methodology_summary() if self.settings.ENABLE_WEB_KNOWLEDGE else ""
         prompt = (
             "Given current findings, adjust the pentest plan. Keep JSON list of Step objects. "
-            f"Findings: {json.dumps(findings)}\nCurrentPlan: {json.dumps([s.model_dump() for s in self._plan])}"
+            f"MethodologyContext: {method_context}\nFindings: {json.dumps(findings)}\nCurrentPlan: {json.dumps([s.model_dump() for s in self._plan])}"
         )
         try:
             response = self.client.generate(model=self.model, prompt=prompt)
@@ -79,4 +85,30 @@ class Planner:
             self._plan = [Step(**item) for item in parsed]
         except Exception as exc:
             self.logger.warning("Plan adjustment failed, keeping current plan: %s", exc)
+
+        observed = " ".join(str(f.get("output", "")).lower() for f in findings)
+        extra_steps: list[Step] = []
+        if "wordpress" in observed:
+            extra_steps.append(
+                Step(
+                    phase="Enumeration",
+                    tool="wpscan",
+                    args={"target": self._target},
+                    reasoning="Detected WordPress indicators; run focused CMS scan.",
+                    priority=8,
+                    depends_on=["whatweb"],
+                )
+            )
+        if "api" in observed:
+            extra_steps.append(
+                Step(
+                    phase="Enumeration",
+                    tool="ffuf",
+                    args={"target": self._target},
+                    reasoning="Detected API hints; brute-force common endpoints.",
+                    priority=9,
+                    depends_on=["gobuster"],
+                )
+            )
+        self._plan.extend(extra_steps)
         return self._plan

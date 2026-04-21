@@ -12,6 +12,7 @@ import ollama
 from rich.console import Console
 from rich.panel import Panel
 
+from agent.knowledge import KnowledgeBase
 from agent.memory import Memory
 from agent.planner import Planner, Step
 from agent.reporter import Reporter
@@ -30,6 +31,7 @@ class NeuralKaliAgent:
         self.tools = ToolExecutor(self.settings, self.logger)
         self.memory = Memory(self.settings, self.logger)
         self.planner = Planner(self.settings, self.logger)
+        self.knowledge = KnowledgeBase(self.settings, self.logger)
         self.reporter = Reporter(self.settings, self.logger)
         self.client = ollama.Client(host=self.settings.OLLAMA_HOST)
         self.model = self.settings.AI_MODEL
@@ -44,11 +46,12 @@ class NeuralKaliAgent:
         return target in self.scope
 
     def _llm_decision(self, target: str, task: str, findings: list[dict[str, Any]], last_result: dict[str, Any]) -> dict[str, Any]:
+        method_context = self.knowledge.methodology_summary() if self.settings.ENABLE_WEB_KNOWLEDGE else ""
         prompt = (
             "You are an authorized security testing assistant. "
             "Given findings, return JSON exactly with keys action, tool, args, reasoning. "
             "Valid action values: continue, adjust, exploit, complete. "
-            f"Target: {target}\nTask: {task}\nFindings: {findings[-5:]}\nLastResult: {last_result}"
+            f"Target: {target}\nTask: {task}\nMethodologyContext: {method_context}\nFindings: {findings[-5:]}\nLastResult: {last_result}"
         )
         response = self.client.generate(model=self.model, prompt=prompt)
         text = response.get("response", "").strip()
@@ -73,13 +76,9 @@ class NeuralKaliAgent:
             return self.tools.run_whatweb(**args)
         if tool == "enum4linux":
             return self.tools.run_enum4linux(**args)
-        return {
-            "tool_name": tool,
-            "command_run": "",
-            "output": f"Unsupported tool: {tool}",
-            "success": False,
-            "timestamp": "",
-        }
+        if "target" not in args:
+            args["target"] = ""
+        return self.tools.execute_registered_tool(tool, args["target"], args)
 
     def run(self, target: str, task: str, interactive: bool = True) -> dict[str, Any]:
         if not self._in_scope(target):

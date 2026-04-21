@@ -2,6 +2,13 @@
 
 NeuralKali is a local-first AI-assisted security testing orchestrator designed for authorized labs (HTB, THM, and private environments). It combines a planning loop, tool execution layer, memory, and reporting pipeline.
 
+## Intelligence Upgrades
+
+- Extensible tool registry with install/list support from CLI.
+- Web-informed methodology context (OWASP Top 10 baseline cache).
+- Dynamic planning that can add focused steps based on findings.
+- Interactive operator console mode for live task steering.
+
 ## Safety Model
 
 - Scope-based hard enforcement before all tool execution.
@@ -16,6 +23,19 @@ python -m venv .venv
 pip install -r requirements.txt
 python cli.py scope --add 127.0.0.1
 python cli.py run --target 127.0.0.1 --task "Perform authorized recon" --no-interactive
+```
+
+## Interactive Interface
+
+```bash
+python cli.py console
+```
+
+## Tool Management
+
+```bash
+python cli.py tools --list
+python cli.py tools --install nmap zap burpsuite
 ```
 
 ## HTB/THM Usage

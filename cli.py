@@ -7,6 +7,7 @@ from pathlib import Path
 
 import ollama
 from rich.console import Console
+from rich.prompt import Prompt
 from rich.table import Table
 
 from agent.agent import NeuralKaliAgent
@@ -57,6 +58,12 @@ def main() -> int:
     scope_group.add_argument("--clear", action="store_true")
 
     sub.add_parser("health", help="Run environment checks")
+    sub.add_parser("console", help="Start interactive operator console")
+
+    tools_p = sub.add_parser("tools", help="List or install supported tools")
+    tools_group = tools_p.add_mutually_exclusive_group(required=True)
+    tools_group.add_argument("--list", action="store_true")
+    tools_group.add_argument("--install", nargs="+")
 
     report_p = sub.add_parser("report", help="Regenerate report from memory")
     report_p.add_argument("--target", required=True)
@@ -108,6 +115,33 @@ def main() -> int:
             table.add_row(key, str(value))
         console.print(table)
         return 0 if health.get("healthy") else 1
+
+    if args.command == "console":
+        while True:
+            target = Prompt.ask("Target (or 'exit')")
+            if target.strip().lower() in {"exit", "quit"}:
+                break
+            task = Prompt.ask("Task description")
+            mode = Prompt.ask("Interactive approvals", choices=["y", "n"], default="y")
+            result = agent.run(target=target, task=task, interactive=(mode == "y"))
+            console.print(result)
+        return 0
+
+    if args.command == "tools":
+        if args.list:
+            table = Table(title="Supported Tooling")
+            table.add_column("Name")
+            table.add_column("Binary")
+            table.add_column("Installed")
+            table.add_column("Installer Package")
+            for item in agent.tools.available_tools():
+                table.add_row(item["name"], item["binary"], str(item["installed"]), item["installer"])
+            console.print(table)
+            return 0
+        if args.install:
+            outcome = agent.tools.install_tools(args.install)
+            console.print(outcome)
+            return 0
 
     if args.command == "report":
         findings = agent.memory.get_full_history(args.target)
